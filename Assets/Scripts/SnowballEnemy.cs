@@ -3,30 +3,25 @@ using System.Collections;
 
 public class SnowballEnemy : MonoBehaviour
 {
-    public Transform player;
-    private float moveSpeed = 1.5f;
+    private float moveSpeed = 5f;
     private Rigidbody rb;
     private Vector3 movement;
-    private Vector3 originalPosition; 
-
+    private Vector3 originalPosition;
+    private bool hasRespawned = false;
+    public GameObject gameOverScreen; 
     void Start()
     {
         rb = GetComponent<Rigidbody>();
-        originalPosition = transform.position; 
-        StartCoroutine(DespawnAndRespawn());
-        player = GameObject.FindWithTag("Player").transform;
+        originalPosition = transform.position;
 
-    }
+        // Ensure z position is locked to 0
+        Vector3 fixedPos = transform.position;
+        fixedPos.z = 0f;
+        transform.position = fixedPos;
 
-    void Update()
-    {
-        if (player == null) return; // Stops if player is destroyed
+        StartCoroutine(TrackAndLaunch());
+        StartCoroutine(SelfDestructAfterTime());
 
-        Vector3 direction = player.position - transform.position;
-        float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
-        rb.rotation = Quaternion.Euler(0, 0, angle);
-        direction.Normalize();
-        movement = direction;
     }
 
     void FixedUpdate()
@@ -39,24 +34,76 @@ public class SnowballEnemy : MonoBehaviour
         rb.MovePosition(transform.position + (direction * moveSpeed * Time.deltaTime));
     }
 
-    IEnumerator DespawnAndRespawn()
+    IEnumerator TrackAndLaunch()
     {
-        yield return new WaitForSeconds(10f); 
-        Vector3 spawnPos = originalPosition; // Store the original position before destroying
-        Destroy(gameObject); 
-        SnowballSpawner.RespawnEnemy(spawnPos, transform.rotation); // Call the spawner to create a new enemy
+        GameObject player = GameObject.FindGameObjectWithTag("Player");
+        Vector3 targetPosition = transform.position;
+
+        float trackTime = 3f;
+        float elapsedTime = 0f;
+
+        while (elapsedTime < trackTime)
+        {
+            if (player != null)
+            {
+                targetPosition = player.transform.position;
+            }
+
+            elapsedTime += Time.deltaTime;
+            yield return null;
+        }
+
+        // Set movement direction toward where the player was
+        movement = (targetPosition - transform.position).normalized;
+
+        // Rotate to face the movement direction
+        float angle = Mathf.Atan2(movement.y, movement.x) * Mathf.Rad2Deg;
+        rb.rotation = Quaternion.Euler(0, 0, angle);
     }
+
+    IEnumerator SelfDestructAfterTime()
+    {
+        yield return new WaitForSeconds(10f);
+        if (!hasRespawned)
+        {
+            hasRespawned = true;
+            SnowballSpawner.RespawnEnemy(originalPosition, transform.rotation);
+        }
+        Destroy(gameObject);
+    }
+
     private void OnCollisionEnter(Collision other)
     {
+        if (hasRespawned) return;
+
+        Debug.Log("Collided with: " + other.gameObject.name);
+
         if (other.gameObject.CompareTag("Player"))
         {
-            Destroy(other.gameObject); // Destroy Player
+            Debug.Log("Hit the player");
+            hasRespawned = true;
+            Destroy(other.gameObject);
+
+
+            GameManager.instance?.ShowGameOver();
+
+
 
             GameObject[] snowballs = GameObject.FindGameObjectsWithTag("Snowball");
             foreach (GameObject snowball in snowballs)
             {
-                Destroy(snowball); // Destroy All Snowballs
+                Destroy(snowball);
             }
+
+            SnowballSpawner.RespawnEnemy(originalPosition, transform.rotation);
+            Destroy(gameObject);
+        }
+        else if (other.gameObject.CompareTag("Wall"))
+        {
+            Debug.Log("Wall Hit!");
+            hasRespawned = true;
+            SnowballSpawner.RespawnEnemy(originalPosition, transform.rotation);
+            Destroy(gameObject);
         }
     }
 }

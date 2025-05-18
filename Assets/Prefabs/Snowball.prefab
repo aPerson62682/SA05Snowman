@@ -262,8 +262,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 559595aa384e0b64a877ee5b34a0c069, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  player: {fileID: 0}
-  enemyPrefab: {fileID: 0}
+  gameOverScreen: {fileID: 2519178610736932693, guid: 445e6d3bff7edf94eac8acf1c69a3934, type: 3}
 --- !u!54 &6377072136887945288
 Rigidbody:
   m_ObjectHideFlags: 0

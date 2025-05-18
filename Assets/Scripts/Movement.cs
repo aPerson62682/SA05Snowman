@@ -1,74 +1,133 @@
-using System;
-using UnityEngine;
+﻿using UnityEngine;
 
 public class Movement : MonoBehaviour
 {
-    [SerializeField] private float speed = 5f;
-    [SerializeField] private float rotationSpeed = 100.0f;
-    [SerializeField] private GameObject Purly;
+    private float horizontal;
+    private float speed = 8f;
+    private float jumpingPower = 8f; // 🔽 Reduced from 16f
+    private bool isFacingRight = true;
 
-    private Vector3 lastValidPosition;
-    private Vector3 startingPosition;
-    private Rigidbody rb;
+    [SerializeField] private float rotationSpeed = 100f;
+    [SerializeField] private Rigidbody rb;
+    [SerializeField] private Transform groundCheck;
+    [SerializeField] private LayerMask groundLayer;
+
+
+    private bool wasGroundedLastFrame = true;
+
+    [SerializeField] private GameObject landingEffectPrefab;
+    [SerializeField] private Transform effectSpawnPoint; // Where the effect appears (usually near the feet)
+
+    public ParticleSystem water;
+
+    // Reference to AudioManager
+    private AudioManager audioManager;
 
     void Start()
     {
-        rb = Purly.GetComponent<Rigidbody>();
-        lastValidPosition = Purly.transform.position;
-        startingPosition = Purly.transform.position;
+        // Initialize AudioManager instance
+        audioManager = FindObjectOfType<AudioManager>();
+        if (audioManager != null)
+        {
+            audioManager.PlayMusic("MainTheme");
+            audioManager.musicSource.loop = true;
+        }
+        else
+        {
+            Debug.LogError("AudioManager instance not found in the scene.");
+        }
     }
 
     void Update()
     {
-        float translation = speed * Time.deltaTime;
-        float rotation = rotationSpeed * Time.deltaTime;
+        // Get horizontal input (A/D or Left/Right arrows)
+        horizontal = Input.GetAxisRaw("Horizontal");
 
-        Vector3 newPosition = Purly.transform.position;
+        bool isCurrentlyGrounded = IsGrounded();
 
-        // Movement with transform.position 
-        if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow))
-            newPosition += new Vector3(-translation, 0, 0);
+        // Landed this frame (was in air, now grounded)
+        if (!wasGroundedLastFrame && isCurrentlyGrounded)
+        {
+            TriggerLandingEffect();
+        }
 
-        if (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow))
-            newPosition += new Vector3(translation, 0, 0);
+        wasGroundedLastFrame = isCurrentlyGrounded;
 
-        if (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow))
-            newPosition += new Vector3(0, translation, 0);
+        if (Input.GetKeyDown(KeyCode.W) && isCurrentlyGrounded)
+        {
+            water.Play();
+            rb.linearVelocity = new Vector3(rb.linearVelocity.x, jumpingPower, 0f);
+            if (audioManager != null)
+            {
+                audioManager.PlaySFX("JumpSound");
+            }
+        }
 
-        if (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow))
-            newPosition += new Vector3(0, -translation, 0);
+        // Variable jump height (release W)
+        if (Input.GetKeyUp(KeyCode.W) && rb.linearVelocity.y > 0f)
+        {
+            rb.linearVelocity = new Vector3(rb.linearVelocity.x, rb.linearVelocity.y * 0.5f, 0f);
+        }
 
-        Purly.transform.position = newPosition;
-
-        // Rotation using transform.Rotate 
+        // 🔄 Rotate while holding Space
         if (Input.GetKey(KeyCode.Space))
         {
-            Purly.transform.Rotate(new Vector3(0, rotation, 0));
+            transform.Rotate(Vector3.up * rotationSpeed * Time.deltaTime);
         }
+
+        Flip();
     }
 
-    void OnCollisionEnter(Collision collision)
+    private void FixedUpdate()
     {
-        if (collision.gameObject.CompareTag("Wall"))
-        {
-            Purly.transform.position = lastValidPosition;  // Stop at walls
-        }
-        else if (collision.gameObject.CompareTag("Kill"))
-        {
-            Purly.transform.position = startingPosition;  // Brings Purly back to starting position if it hits the kill plane
-        }
-        else if (collision.gameObject.CompareTag("Balloons"))
-        {
-            Destroy(collision.gameObject);
-        }
-
+        // Apply horizontal movement
+        rb.linearVelocity = new Vector3(horizontal * speed, rb.linearVelocity.y, 0f);
     }
 
-    void OnCollisionExit(Collision collision)
+    private bool IsGrounded()
     {
-        if (collision.gameObject.CompareTag("Wall"))
+        return Physics.CheckSphere(groundCheck.position, 0.2f, groundLayer);
+    }
+
+    private void Flip()
+    {
+        if ((isFacingRight && horizontal < 0f) || (!isFacingRight && horizontal > 0f))
         {
-            lastValidPosition = Purly.transform.position;
+            isFacingRight = !isFacingRight;
+            Vector3 localScale = transform.localScale;
+            localScale.x *= -1f;
+            transform.localScale = localScale;
+
+
+            if (IsGrounded())
+            {
+            water.Play();   
+            }
+
         }
     }
+
+    void OnDrawGizmosSelected()
+    {
+        if (groundCheck != null)
+        {
+            Gizmos.color = Color.green;
+            Gizmos.DrawWireSphere(groundCheck.position, 0.2f);
+        }
+    }
+    private void TriggerLandingEffect()
+    {
+        Debug.Log("Purly landed!");
+
+        if (landingEffectPrefab != null && effectSpawnPoint != null)
+        {
+            Instantiate(landingEffectPrefab, effectSpawnPoint.position, Quaternion.identity);
+        }
+
+        if (audioManager != null)
+        {
+            audioManager.PlaySFX("LandSound");
+        }
+    }
+
 }

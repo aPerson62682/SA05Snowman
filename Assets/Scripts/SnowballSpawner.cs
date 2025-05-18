@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using System.Collections;
 
 public class SnowballSpawner : MonoBehaviour
@@ -11,14 +11,34 @@ public class SnowballSpawner : MonoBehaviour
     {
         instance = this; // Assign this instance so enemies can call it
     }
+
     public static void RespawnEnemy(Vector3 position, Quaternion rotation)
     {
-        instance.StartCoroutine(instance.SpawnEnemy(position, rotation));
+        if (instance != null)
+        {
+            instance.StartCoroutine(instance.SpawnEnemy(position, rotation));
+        }
     }
+
     IEnumerator SpawnEnemy(Vector3 position, Quaternion rotation)
     {
-        yield return new WaitForSeconds(20f); // Wait 20 seconds before respawning
-        GameObject newEnemy = Instantiate(enemyPrefab, position, rotation); // Respawn enemy at original location
-        newEnemy.tag = targetTag; // Set the tag of the new enemy
+        yield return new WaitForSeconds(5f);
+
+        GameObject newEnemy = Instantiate(enemyPrefab, position, rotation);
+        newEnemy.tag = targetTag;
+
+        SnowballEnemy enemyScript = newEnemy.GetComponent<SnowballEnemy>();
+        if (enemyScript != null)
+        {
+            GameObject screen = GameObject.Find("GameOverScreen");
+            Debug.Log("Trying to find GameOverScreen... Found? " + (screen != null));
+
+             screen = GameObject.Find("GameOverScreen");
+            if (screen != null)
+            {
+                enemyScript.gameOverScreen = screen;
+            }
+        }
     }
+
 }
